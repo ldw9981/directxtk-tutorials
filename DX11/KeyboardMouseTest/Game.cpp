@@ -12,11 +12,11 @@ using namespace DirectX::SimpleMath;
 
 using Microsoft::WRL::ComPtr;
 
-#define ORBIT_STYLE
+//#define ORBIT_STYLE
 
 namespace
 {
-    const XMVECTORF32 START_POSITION = { 0.f, -1.5f, 0.f, 0.f };
+    const XMVECTORF32 START_POSITION = { 0.f, 0.f, 0.f, 0.f };
     const XMVECTORF32 ROOM_BOUNDS = { 8.f, 6.f, 12.f, 0.f };
     constexpr float ROTATION_GAIN = 0.004f;
     constexpr float MOVEMENT_GAIN = 0.07f;
@@ -61,6 +61,9 @@ void Game::Initialize(HWND window, int width, int height)
     m_timer.SetTargetElapsedSeconds(1.0 / 60);
     */
 
+    AllocConsole();
+    freopen("CONOUT$", "wb", stdout);//출력의 핸들에 따라 옵션이 달라집니다. 옵션은 아래 출처 확인.
+
     m_keyboard = std::make_unique<Keyboard>();
     m_mouse = std::make_unique<Mouse>();
     m_mouse->SetWindow(window);
@@ -71,9 +74,9 @@ void Game::Initialize(HWND window, int width, int height)
 void Game::Tick()
 {
     m_timer.Tick([&]()
-    {
-        Update(m_timer);
-    });
+        {
+            Update(m_timer);
+        });
 
     Render();
 }
@@ -85,24 +88,15 @@ void Game::Update(DX::StepTimer const&)
     auto mouse = m_mouse->GetState();
     m_mouseButtons.Update(mouse);
 
-#ifdef ORBIT_STYLE
-    m_radius -= float(mouse.scrollWheelValue) * ROTATION_GAIN;
-    m_mouse->ResetScrollWheelValue();
-    m_radius = std::max(c_minRadius, std::min(c_maxRadius, m_radius));
-#endif
-
     if (mouse.positionMode == Mouse::MODE_RELATIVE)
     {
         Vector3 delta = Vector3(float(mouse.x), float(mouse.y), 0.f)
             * ROTATION_GAIN;
 
-#ifdef ORBIT_STYLE
-        m_phi -= delta.y;
-        m_theta -= delta.x;
-#else
-        m_pitch -= delta.y;
-        m_yaw -= delta.x;
-#endif
+
+        m_pitch += delta.y;
+        m_yaw += delta.x;
+
     }
 
     m_mouse->SetMode(mouse.leftButton ? Mouse::MODE_RELATIVE : Mouse::MODE_ABSOLUTE);
@@ -118,80 +112,51 @@ void Game::Update(DX::StepTimer const&)
 
     if (kb.Home)
     {
-#ifdef ORBIT_STYLE
-        m_theta = 0.f;
-        m_phi = c_defaultPhi;
-        m_radius = c_defaultRadius;
-#else
         m_cameraPos = START_POSITION.v;
         m_yaw = m_pitch = 0.f;
-#endif
     }
 
     Vector3 move = Vector3::Zero;
 
+
+    float fowardScale = 0.0f;
+    float rightScale = 0.0f;
+    float upScale = 0.0f;
     if (kb.Up || kb.W)
-        move.y += 1.f;
+        fowardScale = 1.f;
 
     if (kb.Down || kb.S)
-        move.y -= 1.f;
+        fowardScale = -1.f;
 
     if (kb.Left || kb.A)
-        move.x += 1.f;
+        rightScale = -1.f;
 
     if (kb.Right || kb.D)
-        move.x -= 1.f;
+        rightScale = 1.f;
 
     if (kb.PageUp || kb.Space)
-        move.z += 1.f;
+        upScale = 1.f;
 
     if (kb.PageDown || kb.X)
-        move.z -= 1.f;
+        upScale = -1.f;
 
-#ifdef ORBIT_STYLE
-    move *= MOVEMENT_GAIN;
+    // 원래 있던 사인-코사인 어쩌고 함수는 전방벡터를 얻는 최적화된 코드
+    Vector3 forward, right;
+    Matrix rotMatrix = Matrix::CreateFromYawPitchRoll(m_yaw, m_pitch, 0.0f);
+    forward = Vector3(rotMatrix._31, rotMatrix._32, rotMatrix._33);// -rotMatrix.Forward(); // Matrix가 오른손 좌표계라서 -를 붙여줘야 한다.
+    right = rotMatrix.Right();
 
-    m_phi -= move.y;
-    m_theta -= move.x;
-    m_radius += move.z;
-#else
-    Quaternion q = Quaternion::CreateFromYawPitchRoll(m_yaw, m_pitch, 0.f);
+    float speed = MOVEMENT_GAIN;       // 이동속도
+    Vector3 worldDirection = forward * fowardScale + right * rightScale + Vector3::Up * upScale; // 회전상태와 키를 고려한 월드에서의 이동방향
+    worldDirection.Normalize(); //  순수 크기1로  정규화
 
-    move = Vector3::Transform(move, q);
+    m_cameraPos = m_cameraPos + worldDirection * speed;   // 정면벡터
 
-    move *= MOVEMENT_GAIN;
 
-    m_cameraPos += move;
-
+    // 방크기 제한
     Vector3 halfBound = (Vector3(ROOM_BOUNDS.v) / Vector3(2.f))
         - Vector3(0.1f, 0.1f, 0.1f);
 
-    m_cameraPos = Vector3::Min(m_cameraPos, halfBound);
-    m_cameraPos = Vector3::Max(m_cameraPos, -halfBound);
-#endif
-
-#ifdef ORBIT_STYLE
-    // limit pitch to straight up or straight down
-    constexpr float limit = XM_PIDIV2 - 0.01f;
-    m_phi = std::max(1e-2f, std::min(limit, m_phi));
-
-    if (m_theta > XM_PI)
-    {
-        m_theta -= XM_2PI;
-    }
-    else if (m_theta < -XM_PI)
-    {
-        m_theta += XM_2PI;
-    }
-
-    XMVECTOR lookFrom = XMVectorSet(
-        m_radius * sinf(m_phi) * cosf(m_theta),
-        m_radius * cosf(m_phi),
-        m_radius * sinf(m_phi) * sinf(m_theta),
-        0);
-
-    m_view = XMMatrixLookAtRH(lookFrom, g_XMZero, Vector3::Up);
-#else
     // limit pitch to straight up or straight down
     constexpr float limit = XM_PIDIV2 - 0.01f;
     m_pitch = std::max(-limit, m_pitch);
@@ -207,15 +172,9 @@ void Game::Update(DX::StepTimer const&)
         m_yaw += XM_2PI;
     }
 
-    float y = sinf(m_pitch);
-    float r = cosf(m_pitch);
-    float z = r * cosf(m_yaw);
-    float x = r * sinf(m_yaw);
+    Vector3 lookAt = m_cameraPos + forward;//forward;   // 정면벡터
+    m_view = XMMatrixLookAtLH(m_cameraPos, lookAt, Vector3::Up);
 
-    XMVECTOR lookAt = m_cameraPos + Vector3(x, y, z);
-
-    m_view = XMMatrixLookAtRH(m_cameraPos, lookAt, Vector3::Up);
-#endif
 
     if (m_keys.pressed.Tab || m_mouseButtons.rightButton == Mouse::ButtonStateTracker::PRESSED)
     {
@@ -228,6 +187,8 @@ void Game::Update(DX::StepTimer const&)
         else
             m_roomColor = Colors::Red;
     }
+
+    printf("pos: %f, %f, %f  ,   lookAt : %f, %f, %f \n", m_cameraPos.x, m_cameraPos.y, m_cameraPos.z, lookAt.x, lookAt.y, lookAt.z);
 }
 #pragma endregion
 
@@ -248,7 +209,8 @@ void Game::Render()
     context;
 
     // TODO: Add your rendering code here.
-    m_room->Draw(Matrix::Identity, m_view, m_proj, m_roomColor, m_roomTex.Get());
+    Matrix world = Matrix::CreateTranslation(Vector3(0.f, 0.f, 20.f));
+    m_room->Draw(world, m_view, m_proj, m_roomColor, m_roomTex.Get());
 
     m_deviceResources->PIXEndEvent();
 
@@ -355,8 +317,7 @@ void Game::CreateWindowSizeDependentResources()
     // TODO: Initialize windows-size dependent objects here.
 
     auto size = m_deviceResources->GetOutputSize();
-    m_proj = Matrix::CreatePerspectiveFieldOfView(XMConvertToRadians(70.f),
-        float(size.right) / float(size.bottom), 0.01f, 100.f);
+    m_proj = XMMatrixPerspectiveFovLH(XMConvertToRadians(70.f), float(size.right) / float(size.bottom), 0.01f, 100.f);
 }
 
 void Game::OnDeviceLost()

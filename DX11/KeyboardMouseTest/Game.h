@@ -14,74 +14,75 @@ class Game final : public DX::IDeviceNotify
 {
 public:
 
-    Game() noexcept(false);
-    ~Game() = default;
+	Game() noexcept(false);
+	~Game() = default;
 
-    Game(Game&&) = default;
-    Game& operator= (Game&&) = default;
+	Game(Game&&) = default;
+	Game& operator= (Game&&) = default;
 
-    Game(Game const&) = delete;
-    Game& operator= (Game const&) = delete;
+	Game(Game const&) = delete;
+	Game& operator= (Game const&) = delete;
 
-    // Initialization and management
-    void Initialize(HWND window, int width, int height);
+	// Initialization and management
+	void Initialize(HWND window, int width, int height);
 
-    // Basic game loop
-    void Tick();
+	// Basic game loop
+	void Tick();
 
-    // IDeviceNotify
-    void OnDeviceLost() override;
-    void OnDeviceRestored() override;
+	// IDeviceNotify
+	void OnDeviceLost() override;
+	void OnDeviceRestored() override;
 
-    // Messages
-    void OnActivated();
-    void OnDeactivated();
-    void OnSuspending();
-    void OnResuming();
-    void OnWindowMoved();
-    void OnWindowSizeChanged(int width, int height);
+	// Messages
+	void OnActivated();
+	void OnDeactivated();
+	void OnSuspending();
+	void OnResuming();
+	void OnWindowMoved();
+	void OnWindowSizeChanged(int width, int height);
 
-    // Properties
-    void GetDefaultSize( int& width, int& height ) const noexcept;
+	// Properties
+	void GetDefaultSize(int& width, int& height) const noexcept;
 
 private:
 
-    void Update(DX::StepTimer const& timer);
-    void Render();
+	void Update(DX::StepTimer const& timer);
+	void Render();
 
-    void Clear();
+	void Clear();
 
-    void CreateDeviceDependentResources();
-    void CreateWindowSizeDependentResources();
+	void CreateDeviceDependentResources();
+	void CreateWindowSizeDependentResources();
 
-    // Device resources.
-    std::unique_ptr<DX::DeviceResources>    m_deviceResources;
 
-    // Rendering loop timer.
-    DX::StepTimer                           m_timer;
 
-    std::unique_ptr<DirectX::Keyboard>              m_keyboard;
-    std::unique_ptr<DirectX::Mouse>                 m_mouse;
+	// Device resources.
+	std::unique_ptr<DX::DeviceResources>    m_deviceResources;
 
-    std::unique_ptr<DirectX::GeometricPrimitive>    m_room;
+	// Rendering loop timer.
+	DX::StepTimer                           m_timer;
 
-    DirectX::SimpleMath::Matrix                     m_view;
-    DirectX::SimpleMath::Matrix                     m_proj;
+	std::unique_ptr<DirectX::Keyboard>              m_keyboard;
+	std::unique_ptr<DirectX::Mouse>                 m_mouse;
+	std::unique_ptr<DirectX::GeometricPrimitive>    m_room;
 
-    // FPS-style
-    float                                           m_pitch;
-    float                                           m_yaw;
-    DirectX::SimpleMath::Vector3                    m_cameraPos;
+	DirectX::SimpleMath::Matrix                     m_view;
+	DirectX::SimpleMath::Matrix                     m_proj;
 
-    // Orbit-style
-    float                                           m_theta;
-    float                                           m_phi;
-    float                                           m_radius;
+	// FPS-style
+	float                                           m_pitch;
+	float                                           m_yaw;
+	DirectX::SimpleMath::Vector3                    m_cameraPos;
 
-    DirectX::SimpleMath::Color                      m_roomColor;
+	// Orbit-style
+	float                                           m_theta;
+	float                                           m_phi;
+	float                                           m_radius;
 
-    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_roomTex;
+	DirectX::SimpleMath::Color                      m_roomColor;
 
-    DirectX::Keyboard::KeyboardStateTracker         m_keys;
-    DirectX::Mouse::ButtonStateTracker              m_mouseButtons;
+	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_roomTex;
+
+	DirectX::Keyboard::KeyboardStateTracker         m_keys;
+	DirectX::Mouse::ButtonStateTracker              m_mouseButtons;
 };
